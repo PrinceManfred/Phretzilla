@@ -7,11 +7,14 @@ import { onBeforeMount, ref } from 'vue';
 let audioCtx: AudioContext;
 
 const openNote = ref<string>('E2');
-const fretCount = ref(22);
+const fretCount = ref<string | null>('22');
 const bpm = ref(80);
 const noteList = ref<NoteType[]>([]);
 const currentNote = ref<string>('');
 const isPlaying = ref(false);
+const showFlats = ref(true);
+const showSharps = ref(true);
+const showNaturals = ref(true);
 let ticker: ReturnType<typeof setInterval> | undefined;
 
 // create Oscillator node
@@ -31,10 +34,26 @@ function setupAudio() {
 }
 
 function setString() {
-  const lastNote = Note.transpose(openNote.value, Interval.fromSemitones(fretCount.value));
+  let frets = parseInt(fretCount.value ?? '22');
+
+  if (isNaN(frets) || frets < 1) {
+    frets = 22;
+  }
+
+  fretCount.value = frets.toString();
+
+  const lastNote = Note.transpose(openNote.value, Interval.fromSemitones(frets));
   const notes = Range.chromatic([openNote.value, lastNote]);
   const enharmonics = notes.map((v) => NotePlus.enharmonic(v));
-  noteList.value = Note.sortedUniqNames([...notes, ...enharmonics]).map((v) => Note.get(v));
+  noteList.value = Note.sortedUniqNames([...notes, ...enharmonics])
+    .map((v) => Note.get(v))
+    .filter((v) => {
+      if (!showNaturals.value && !showSharps.value && !showFlats.value) return true;
+      if (v.acc == 'b' && !showFlats.value) return false;
+      if (v.acc == '#' && !showSharps.value) return false;
+      if (v.acc == '' && !showNaturals.value) return false;
+      return true;
+    });
 }
 
 function setTempo() {
@@ -46,7 +65,11 @@ function start() {
   currentNote.value = noteList.value[Math.floor(Math.random() * noteList.value.length)].name;
   play();
   ticker = setInterval(function ticker() {
-    currentNote.value = noteList.value[Math.floor(Math.random() * noteList.value.length)].name;
+    let newNote;
+    do {
+      newNote = noteList.value[Math.floor(Math.random() * noteList.value.length)].name;
+    } while (newNote == currentNote.value);
+    currentNote.value = newNote;
     play();
   }, 240_000 / bpm.value);
 }
@@ -77,6 +100,13 @@ onBeforeMount(() => {
       <input v-model="openNote" @blur="setString" />
       <input v-model="fretCount" @blur="setString" />
       <input v-model="bpm" @blur="setTempo" />
+      <br />
+      <input type="checkbox" name="naturals" v-model="showNaturals" @change="setString" />
+      <label for="sharps">Naturals</label><br />
+      <input type="checkbox" name="flats" v-model="showFlats" @change="setString" />
+      <label for="flats">Flats</label><br />
+      <input type="checkbox" name="sharps" v-model="showSharps" @change="setString" />
+      <label for="sharps">Sharps</label><br />
       <button @click="togglePlayback">{{ isPlaying ? 'Stop' : 'Play' }}</button>
     </div>
     <div>
