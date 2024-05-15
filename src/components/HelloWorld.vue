@@ -2,7 +2,7 @@
 import { Interval, Note, Range } from 'tonal';
 import type { Note as NoteType } from '@tonaljs/pitch-note';
 import * as NotePlus from '@/utilities/NotePlus';
-import { onBeforeMount, ref } from 'vue';
+import { onBeforeMount, ref, watch } from 'vue';
 
 let audioCtx: AudioContext;
 
@@ -15,10 +15,12 @@ const isPlaying = ref(false);
 const showFlats = ref(true);
 const showSharps = ref(true);
 const showNaturals = ref(true);
+const volume = ref(50);
 let ticker: ReturnType<typeof setInterval> | undefined;
 
 // create Oscillator node
 let oscillator: OscillatorNode;
+let gain: GainNode | null;
 function play() {
   if (!isPlaying.value) setupAudio();
   const freq = Note.freq(currentNote.value) ?? 0;
@@ -27,9 +29,12 @@ function play() {
 
 function setupAudio() {
   audioCtx = new AudioContext();
+  gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(volume.value / 100, audioCtx.currentTime);
+  gain.connect(audioCtx.destination);
   oscillator = audioCtx.createOscillator();
   oscillator.type = 'square';
-  oscillator.connect(audioCtx.destination);
+  oscillator.connect(gain);
   oscillator.start();
 }
 
@@ -77,6 +82,7 @@ function start() {
 function stop() {
   if (ticker != null) clearInterval(ticker);
   audioCtx?.close();
+  gain = null;
 }
 
 function togglePlayback() {
@@ -91,6 +97,11 @@ function togglePlayback() {
 
 onBeforeMount(() => {
   setString();
+});
+
+watch(volume, () => {
+  if (gain == null) return;
+  gain.gain.exponentialRampToValueAtTime(volume.value / 100, audioCtx.currentTime);
 });
 </script>
 
@@ -108,6 +119,9 @@ onBeforeMount(() => {
       <input type="checkbox" name="sharps" v-model="showSharps" @change="setString" />
       <label for="sharps">Sharps</label><br />
       <button @click="togglePlayback">{{ isPlaying ? 'Stop' : 'Play' }}</button>
+      <br />
+      <input v-model="volume" name="volume" type="range" min="1" max="100" />
+      <label for="volume">Volume</label>
     </div>
     <div>
       <h1>{{ currentNote }}</h1>
