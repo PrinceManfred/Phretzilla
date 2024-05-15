@@ -12,7 +12,7 @@ const bpm = ref(80);
 const noteList = ref<NoteType[]>([]);
 const currentNote = ref<string>('');
 const isPlaying = ref(false);
-let ticker: number | undefined;
+let ticker: ReturnType<typeof setInterval> | undefined;
 
 // create Oscillator node
 let oscillator: OscillatorNode;
